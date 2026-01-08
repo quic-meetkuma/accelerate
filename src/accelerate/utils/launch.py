@@ -33,6 +33,7 @@ from ..utils import (
     is_ipex_available,
     is_mlu_available,
     is_musa_available,
+    is_qaic_available,
     is_npu_available,
     is_sdaa_available,
     is_torch_xla_available,
@@ -142,6 +143,8 @@ def prepare_simple_launcher_cmd_env(args: argparse.Namespace) -> tuple[list[str]
             current_env["SDAA_VISIBLE_DEVICES"] = args.gpu_ids
         elif is_musa_available():
             current_env["MUSA_VISIBLE_DEVICES"] = args.gpu_ids
+        elif is_qaic_available():
+            current_env["QAIC_VISIBLE_DEVICES"] = args.gpu_ids
         elif is_npu_available():
             current_env["ASCEND_RT_VISIBLE_DEVICES"] = args.gpu_ids
         elif is_hpu_available():
@@ -194,7 +197,7 @@ def prepare_simple_launcher_cmd_env(args: argparse.Namespace) -> tuple[list[str]
 
     current_env["OMP_NUM_THREADS"] = str(args.num_cpu_threads_per_process)
     if is_ipex_available():
-        current_env["ACCELERATE_USE_IPEX"] = str(args.ipex).lower()
+        current_env["ACCELERATE_USE_IPEX"] = str(args.ipex).lower() if hasattr(args, "ipex") else "0"
     if args.enable_cpu_affinity:
         current_env["ACCELERATE_CPU_AFFINITY"] = "1"
     return cmd, current_env
@@ -269,6 +272,8 @@ def prepare_multi_gpu_env(args: argparse.Namespace) -> dict[str, str]:
             current_env["SDAA_VISIBLE_DEVICES"] = gpu_ids
         elif is_musa_available():
             current_env["MUSA_VISIBLE_DEVICES"] = gpu_ids
+        elif is_qaic_available():
+            current_env["QAIC_VISIBLE_DEVICES"] = gpu_ids
         elif is_npu_available():
             current_env["ASCEND_RT_VISIBLE_DEVICES"] = gpu_ids
         elif is_hpu_available():
@@ -495,6 +500,8 @@ def prepare_deepspeed_cmd_env(args: argparse.Namespace) -> tuple[list[str], dict
             current_env["SDAA_VISIBLE_DEVICES"] = gpu_ids
         elif is_musa_available():
             current_env["MUSA_VISIBLE_DEVICES"] = gpu_ids
+        elif is_qaic_available():
+            current_env["QAIC_VISIBLE_DEVICES"] = gpu_ids
         elif is_npu_available():
             current_env["ASCEND_RT_VISIBLE_DEVICES"] = gpu_ids
         elif is_hpu_available():
@@ -767,6 +774,7 @@ class PrepareForLaunch:
             DistributedType.MULTI_GPU,
             DistributedType.MULTI_MLU,
             DistributedType.MULTI_MUSA,
+            DistributedType.MULTI_QAIC,
             DistributedType.MULTI_NPU,
             DistributedType.MULTI_XPU,
             DistributedType.MULTI_CPU,
