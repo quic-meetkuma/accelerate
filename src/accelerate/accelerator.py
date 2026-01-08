@@ -1623,6 +1623,12 @@ class Accelerator:
 
         new_named_params = self._get_named_parameters(*tuple(result), drop_refs=False)
         # Build a map from old to new params
+        
+        # This mapping will have older id to newer param mapping.
+        # For DTensors which are already prepared outside of the accelerate,
+        # this will have same mapping. e.g. p == id(new_named_params[n])
+        # For newly modified params (above modified), this mapping will be 
+        # from older torch.Tensor to DTensor.
         mapping = {p: new_named_params[n] for n, p in old_named_params.items()}
 
         if not mapping:
@@ -1877,7 +1883,7 @@ class Accelerator:
                             device_ids, output_device = [self.local_process_index], self.local_process_index
                     else:
                         device_ids, output_device = None, None
-                    
+
                     if self.parallelism_config and self.parallelism_config.device_mesh is not None:
                         try:
                             dp_pg = self.parallelism_config.device_mesh.get_group("dp_replicate")
@@ -1889,7 +1895,7 @@ class Accelerator:
                     if tp_enabled:
                         from torch.distributed.tensor.parallel.ddp import _pre_dp_module_transform
                         _pre_dp_module_transform(model)
-                    
+
                     model = torch.nn.parallel.DistributedDataParallel(
                         model, device_ids=device_ids, output_device=output_device, **kwargs
                     )
