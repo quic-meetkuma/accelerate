@@ -1599,6 +1599,7 @@ class Accelerator:
 
         device_mesh = self.torch_device_mesh
 
+        # This will give us mapping for tensor name to its data pointer e.g. id(param).
         old_named_params = fsdp2_canonicalize_names(self._get_named_parameters(*tuple(result), drop_refs=True))
 
         for arg in result:
@@ -1624,8 +1625,17 @@ class Accelerator:
                     dp = torch.nn.Parameter(dp, requires_grad=param.requires_grad)
                 setattr(module_to_tp, param_type, dp)
 
+        # This will give mapping for tensor name to actual parameter. 
+        # But the params will have DTensor references for replicate 
+        # strategy tensors as well.
         new_named_params = fsdp2_canonicalize_names(self._get_named_parameters(*tuple(result), drop_refs=False))
         # Build a map from old to new params
+        
+        # This mapping will have older id to newer param mapping.
+        # For DTensors which are already prepared outside of the accelerate,
+        # this will have same mapping. e.g. p == id(new_named_params[n])
+        # For newly modified params (above modified), this mapping will be 
+        # from older torch.Tensor to DTensor.
         mapping = {p: new_named_params[n] for n, p in old_named_params.items()}
 
         def _get_tensor_address(p):
@@ -1847,8 +1857,7 @@ class Accelerator:
                     self.parallelism_config.dp_replicate_size > 1
                 )
                 tp_enabled = self.parallelism_config.tp_enabled
-            # if self.multi_device and dp_enabled:
-            if self.multi_device and not tp_enabled:
+            if self.multi_device and dp_enabled and (not self.is_fsdp2):
                 # if model_has_dtensor(model):
                 #     raise ValueError(
                 #         "Your model contains `DTensor` parameters, which is incompatible with DDP. Maybe you loaded your model with `device_map='auto'`? Specify `device_map='cuda'` or 'cpu' instead."
@@ -1863,7 +1872,7 @@ class Accelerator:
                             device_ids, output_device = [self.local_process_index], self.local_process_index
                     else:
                         device_ids, output_device = None, None
-                    
+
                     if self.parallelism_config and self.parallelism_config.device_mesh is not None:
                         try:
                             dp_pg = self.parallelism_config.device_mesh.get_group("dp_replicate")
@@ -1875,7 +1884,7 @@ class Accelerator:
                     if tp_enabled:
                         from torch.distributed.tensor.parallel.ddp import _pre_dp_module_transform
                         _pre_dp_module_transform(model)
-                    
+
                     model = torch.nn.parallel.DistributedDataParallel(
                         model, device_ids=device_ids, output_device=output_device, **kwargs
                     )
@@ -3990,7 +3999,7 @@ class Accelerator:
 
                     accessor_mapping[WeightWithDynamicFloat8CastTensor] = "_tensor"
                 # we know we're in FSDP2 so DTensor is available
-                if self.is_fsdp2:
+                if self.is_fsdp2 or model_has_dtensor(obj):
                     from torch.distributed.tensor import DTensor
 
                     accessor_mapping[DTensor] = "_local_tensor"
