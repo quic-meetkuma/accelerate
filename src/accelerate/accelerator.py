@@ -1621,13 +1621,16 @@ class Accelerator:
                         dp = torch.nn.Parameter(dp, requires_grad=param.requires_grad)
                     setattr(module_to_tp, param_type, dp)
 
+        # This will give mapping for tensor name to actual parameter.
+        # But the params will have DTensor references for replicate
+        # strategy tensors as well.
         new_named_params = self._get_named_parameters(*tuple(result), drop_refs=False)
         # Build a map from old to new params
-        
+
         # This mapping will have older id to newer param mapping.
         # For DTensors which are already prepared outside of the accelerate,
         # this will have same mapping. e.g. p == id(new_named_params[n])
-        # For newly modified params (above modified), this mapping will be 
+        # For newly modified params (above modified), this mapping will be
         # from older torch.Tensor to DTensor.
         mapping = {p: new_named_params[n] for n, p in old_named_params.items()}
 
