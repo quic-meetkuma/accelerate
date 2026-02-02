@@ -1543,10 +1543,7 @@ class Accelerator:
                     "You are using lower version of PyTorch(< 2.7.0) with ipex acceleration on Intel CPU or XPU, Intel has upstreamed most of the optimizations into stock PyTorch from 2.7.0, we encourage you to install the latest stock PyTorch and enjoy the out-of-experience on Intel CPU/XPU."
                 )
                 args = self._prepare_ipex(*args)
-        dp_enabled = False
-        if self.parallelism_config:
-            dp_enabled = self.parallelism_config.dp_replicate_enabled and not self.parallelism_config.dp_shard_enabled
-        if self.parallelism_config and self.parallelism_config.tp_enabled and (not dp_enabled):
+        if self.parallelism_config and self.parallelism_config.tp_enabled:
             args = self._prepare_tp(*args)
 
         if self.parallelism_config and self.parallelism_config.cp_enabled:
@@ -1625,16 +1622,16 @@ class Accelerator:
                     dp = torch.nn.Parameter(dp, requires_grad=param.requires_grad)
                 setattr(module_to_tp, param_type, dp)
 
-        # This will give mapping for tensor name to actual parameter. 
-        # But the params will have DTensor references for replicate 
+        # This will give mapping for tensor name to actual parameter.
+        # But the params will have DTensor references for replicate
         # strategy tensors as well.
         new_named_params = fsdp2_canonicalize_names(self._get_named_parameters(*tuple(result), drop_refs=False))
         # Build a map from old to new params
-        
+
         # This mapping will have older id to newer param mapping.
         # For DTensors which are already prepared outside of the accelerate,
         # this will have same mapping. e.g. p == id(new_named_params[n])
-        # For newly modified params (above modified), this mapping will be 
+        # For newly modified params (above modified), this mapping will be
         # from older torch.Tensor to DTensor.
         mapping = {p: new_named_params[n] for n, p in old_named_params.items()}
 
