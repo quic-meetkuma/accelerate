@@ -1862,20 +1862,13 @@ class Accelerator:
         elif device_placement and not self.verify_device_map(model):
             model = model.to(self.device)
         if not evaluation_mode:
-            dp_enabled = False
-            tp_enabled = False
-            if self.parallelism_config:
-                dp_enabled = (
-                    self.parallelism_config.data_parallel_size == self.parallelism_config.dp_replicate_size
-                ) and (
-                    self.parallelism_config.dp_replicate_size > 1
-                )
-                tp_enabled = self.parallelism_config.tp_enabled
-            if self.multi_device and not tp_enabled:
-                # if model_has_dtensor(model):
-                #     raise ValueError(
-                #         "Your model contains `DTensor` parameters, which is incompatible with DDP. Maybe you loaded your model with `device_map='auto'`? Specify `device_map='cuda'` or 'cpu' instead."
-                #     )
+            tp_enabled = (self.parallelism_config and self.parallelism_config.tp_enabled)
+            if self.multi_device and not (tp_enabled or self.is_fsdp2):
+                if model_has_dtensor(model):
+                    raise ValueError(
+                        "Your model contains `DTensor` parameters, which is incompatible with DDP. Maybe you loaded your model with `device_map='auto'`? Specify `device_map='cuda'` or 'xpu' or 'cpu' instead."
+                    )
+            if self.multi_device and (not self.is_fsdp2):
                 if any(p.requires_grad for p in model.parameters()):
                     kwargs = self.ddp_handler.to_kwargs() if self.ddp_handler is not None else {}
                     # TODO: Look at enabling native TP training directly with a proper config
@@ -1904,7 +1897,7 @@ class Accelerator:
                     )
                     if self.ddp_handler is not None:
                         self.ddp_handler.register_comm_hook(model)
-            elif self.parallelism_config and self.parallelism_config.tp_enabled and not dp_enabled:
+            elif tp_enabled:
                 if not hasattr(model, "tp_size"):
                     raise NotImplementedError(
                         "Model should undergo tensor parallel before passing it to accelerate."
